@@ -3,13 +3,14 @@ use crate::*;
 static SEEDS: Lazy<Mutex<HashMap<SeedId, Option<Seed>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, Deserialize))]
 #[serde(crate = "near_sdk::serde")]
 pub struct Seed {
     /// The Farming Token this FarmSeed represented for
     pub seed_id: SeedId,
     pub seed_decimal: u32,
     /// FarmId = {seed_id}#{next_index}
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     pub farms: HashMap<FarmId, VSeedFarm>,
     pub next_index: u32,
     /// total (staked) balance of this seed (Farming Token)
@@ -45,22 +46,31 @@ impl From<Seed> for VSeed {
 }
 
 impl Seed {
-    #[allow(unreachable_patterns)]
+
     pub fn update(&mut self) {
         for (_, vfarm) in self.farms.iter_mut() {
             match vfarm {
+                VSeedFarm::V0(farm) => {
+                    farm.update(self.total_seed_power);
+                }
                 VSeedFarm::Current(farm) => {
                     farm.update(self.total_seed_power);
                 }
-                _ => {}
             }
         }
     }
 
     pub fn update_claimed(&mut self, claimed: &HashMap<FarmId, Balance>) {
         for (farm_id, amount) in claimed {
-            let VSeedFarm::Current(seed_farm) = self.farms.get_mut(farm_id).unwrap();
-            seed_farm.claimed_reward += amount;
+            let vfarm = self.farms.get_mut(farm_id).unwrap();
+            match vfarm {
+                VSeedFarm::V0(farm) => {
+                    farm.claimed_reward += amount;
+                }
+                VSeedFarm::Current(farm) => {
+                    farm.claimed_reward += amount;
+                }
+            }
         }
     }
 

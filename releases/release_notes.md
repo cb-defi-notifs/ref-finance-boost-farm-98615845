@@ -1,5 +1,23 @@
 # Release Notes
 
+Version 0.4.0
+```
+6VWxaLQhmQYp41n5uiaU9i29WjKT5roafwKZntUC7dwv
+```
+1. lp as collateral.
+
+Version 0.3.2
+```
+Hw7LtmaFkxKyqRftZir1GyWwyuWDbDsSYDEuQpkGfb2X
+```
+1. support withdraw beneficiary from outdated farms
+
+Version 0.3.1
+```
+4ARuVYsv55LdK12m38VoEszrt5yL2rNp8DRysAb4Sjmy
+```
+1. add amount_of_withdrew_beneficiary to record the beneficiary account withdraw history
+
 Version 0.3.0
 1. add withdraw_from_undistributed_reward and withdraw_from_beneficiary_account interfaces
 2. improve owner transfer process

@@ -9,6 +9,7 @@ pub struct Metadata {
     pub owner_id: AccountId,
     pub next_owner_id: Option<AccountId>,
     pub next_owner_accept_deadline: Option<u64>,
+    pub ref_exchange_id: AccountId,
     pub state: RunningState,
     pub operators: Vec<AccountId>,
     pub farmer_count: U64,
@@ -34,6 +35,7 @@ impl Contract {
             owner_id: self.data().owner_id.clone(),
             next_owner_id: self.data().next_owner_id.clone(),
             next_owner_accept_deadline: self.data().next_owner_accept_deadline.clone(),
+            ref_exchange_id: self.data().ref_exchange_id.clone(),
             state: self.data().state.clone(),
             operators: self.data().operators.to_vec(),
             farmer_count: self.data().farmer_count.into(),
@@ -70,8 +72,14 @@ impl Contract {
 
     pub fn get_outdated_farm(&self, farm_id: FarmId) -> Option<SeedFarm> {
         self.data().outdated_farms.get(&farm_id).map(|vf| {
-            let VSeedFarm::Current(farm) = vf;
-            farm
+            match vf {
+                VSeedFarm::V0(farm) => {
+                    farm.into()
+                }
+                VSeedFarm::Current(farm) => {
+                    farm
+                }
+            }
         })
     }
 
@@ -132,8 +140,14 @@ impl Contract {
         seed.farms
             .values()
             .map(|vf| {
-                let VSeedFarm::Current(farm) = vf;
-                farm.clone()
+                match vf {
+                    VSeedFarm::V0(farm) => {
+                        farm.clone().into()
+                    }
+                    VSeedFarm::Current(farm) => {
+                        farm.clone()
+                    }
+                }
             })
             .collect()
     }
@@ -142,8 +156,14 @@ impl Contract {
         let (seed_id, _) = parse_farm_id(&farm_id);
         let seed = self.internal_unwrap_seed(&seed_id);
         seed.farms.get(&farm_id).map(|vf| {
-            let VSeedFarm::Current(farm) = vf;
-            farm.clone()
+            match vf {
+                VSeedFarm::V0(farm) => {
+                    farm.clone().into()
+                }
+                VSeedFarm::Current(farm) => {
+                    farm.clone()
+                }
+            }
         })
     }
 
@@ -169,15 +189,22 @@ impl Contract {
         limit: Option<u64>,
     ) -> HashMap<SeedId, FarmerSeed> {
         if let Some(farmer) = self.internal_get_farmer(&farmer_id) {
-            let keys = farmer.seeds.keys_as_vector();
+            let seeds_keys = farmer.seeds.keys_as_vector();
+            let seeds_keys_len = seeds_keys.len();
+            let vseeds_keys = farmer.vseeds.keys_as_vector();
+            let keys_len = seeds_keys.len() + vseeds_keys.len();
             let from_index = from_index.unwrap_or(0);
-            let limit = limit.unwrap_or(keys.len() as u64);
-            (from_index..std::cmp::min(keys.len() as u64, from_index + limit))
+            let limit = limit.unwrap_or(keys_len);
+            (from_index..std::cmp::min(keys_len, from_index + limit))
                 .map(|idx| {
-                    let key = keys.get(idx).unwrap();
-                    (key.clone(), farmer.seeds.get(&key).unwrap())
+                    let key = if idx < seeds_keys_len {
+                        seeds_keys.get(idx).unwrap()
+                    } else {
+                        vseeds_keys.get(idx - seeds_keys_len).unwrap()
+                    };
+                    (key.clone(), farmer.get_seed_unwrap(&key))
                 })
-                .collect()
+                .collect::<HashMap<SeedId, FarmerSeed>>()
         } else {
             HashMap::new()
         }
@@ -185,7 +212,7 @@ impl Contract {
 
     pub fn get_farmer_seed(&self, farmer_id: AccountId, seed_id: SeedId) -> Option<FarmerSeed> {
         if let Some(farmer) = self.internal_get_farmer(&farmer_id) {
-            farmer.seeds.get(&seed_id)
+            farmer.get_seed(&seed_id)
         } else {
             None
         }
